@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Still Water — AppADay 018</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --deep: #050c12;
+    --water-1: #071828;
+    --water-2: #0a2236;
+    --teal: #1a6b7a;
+    --teal-light: #2a9db0;
+    --moon: #d4e8f0;
+    --ripple: rgba(42, 157, 176, 0.6);
+    --surface-glow: rgba(180, 230, 240, 0.15);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--deep);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #canvas {
+    position: fixed;
+    inset: 0;
+    cursor: crosshair;
+  }
+
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 18px 24px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #title {
+    font-size: 24px;
+    font-weight: 400;
+    font-style: italic;
+    color: rgba(210, 240, 248, 0.85);
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+
+  #badge {
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(180, 220, 230, 0.6);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding-top: 4px;
+  }
+
+  #found-display {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #found-count {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(180, 220, 230, 0.55);
+    transition: color 0.6s ease;
+  }
+
+  #found-name {
+    font-size: 30px;
+    font-style: italic;
+    font-weight: 400;
+    color: rgba(180, 230, 240, 0);
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    transition: color 1.2s ease, opacity 1.2s ease;
+    min-height: 38px;
+    text-shadow: 0 0 20px rgba(42, 157, 176, 0.4);
+  }
+
+  #hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 2s ease;
+  }
+
+  #hint p {
+    font-size: 17px;
+    font-style: italic;
+    font-weight: 400;
+    color: rgba(200, 235, 245, 0.55);
+    letter-spacing: 0.08em;
+  }
+
+  #reset-btn {
+    display: none;
+    margin-top: 18px;
+    background: none;
+    border: 1px solid rgba(180, 220, 230, 0.35);
+    color: rgba(200, 235, 245, 0.7);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 8px 22px;
+    border-radius: 2px;
+    cursor: pointer;
+    pointer-events: all;
+    transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    opacity: 0;
+    animation: none;
+  }
+
+  #reset-btn:hover {
+    background: rgba(42, 157, 176, 0.15);
+    border-color: rgba(180, 220, 230, 0.65);
+    color: rgba(220, 245, 255, 0.95);
+  }
+
+  #reset-btn.visible {
+    display: inline-block;
+    animation: fade-in-up 1.2s ease forwards;
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .surface-flash {
+    position: fixed;
+    pointer-events: none;
+    z-index: 8;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: surface-appear 3s ease-out forwards;
+  }
+
+  @keyframes surface-appear {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+    20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    60%  { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="header">
+  <div id="title">still water</div>
+  <div id="badge">AppADay · 018</div>
+</div>
+
+<div id="found-display">
+  <div id="found-name"></div>
+  <div id="found-count">tap the water</div>
+  <button id="reset-btn" onclick="resetGame()">still the water again</button>
+</div>
+
+<div id="hint">
+  <p>something stirs beneath the surface</p>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const foundName = document.getElementById('found-name');
+const foundCount = document.getElementById('found-count');
+const hint = document.getElementById('hint');
+const resetBtn = document.getElementById('reset-btn');
+
+let W, H;
+let ripples = [];
+let particles = [];
+let hiddenObjects = [];
+let foundObjects = new Set();
+let totalFound = 0;
+let hintVisible = true;
+let frameCount = 0;
+let activeObjects = [];
+
+const OBJECTS_POOL = [
+  { name: 'lotus blossom',  emoji: '🪷', color: '#e8a0b4', glow: 'rgba(232, 160, 180, 0.4)', radius: 38 },
+  { name: 'koi',            emoji: '🐠', color: '#f4a460', glow: 'rgba(244, 164, 96, 0.4)',  radius: 32 },
+  { name: 'moon',           emoji: '🌕', color: '#d4e8f0', glow: 'rgba(212, 232, 240, 0.5)', radius: 36 },
+  { name: 'lily pad',       emoji: '🍃', color: '#4a9b6f', glow: 'rgba(74, 155, 111, 0.4)', radius: 30 },
+  { name: 'stone',          emoji: '🪨', color: '#8a9ba8', glow: 'rgba(138, 155, 168, 0.35)',radius: 24 },
+  { name: 'firefly',        emoji: '✨', color: '#f0e070', glow: 'rgba(240, 224, 112, 0.5)', radius: 22 },
+  { name: 'fallen leaf',    emoji: '🍂', color: '#c8703a', glow: 'rgba(200, 112, 58, 0.4)',  radius: 28 },
+  { name: 'dragonfly',      emoji: '🫧', color: '#60c0d0', glow: 'rgba(96, 192, 208, 0.4)',  radius: 26 },
+  { name: 'frog',           emoji: '🐸', color: '#5ab55a', glow: 'rgba(90, 181, 90, 0.4)',   radius: 30 },
+  { name: 'turtle',         emoji: '🐢', color: '#6ab060', glow: 'rgba(106, 176, 96, 0.4)',  radius: 32 },
+  { name: 'lantern',        emoji: '🏮', color: '#e8603a', glow: 'rgba(232, 96, 58, 0.45)',  radius: 30 },
+  { name: 'feather',        emoji: '🪶', color: '#c8b8a8', glow: 'rgba(200, 184, 168, 0.4)', radius: 26 },
+  { name: 'clam',           emoji: '🦪', color: '#d4c8a8', glow: 'rgba(212, 200, 168, 0.4)', radius: 26 },
+  { name: 'crab',           emoji: '🦀', color: '#d85030', glow: 'rgba(216, 80, 48, 0.4)',   radius: 28 },
+  { name: 'jellyfish',      emoji: '🪼', color: '#c090e0', glow: 'rgba(192, 144, 224, 0.4)', radius: 32 },
+  { name: 'spiral shell',   emoji: '🐚', color: '#e0c898', glow: 'rgba(224, 200, 152, 0.4)', radius: 26 },
+  { name: 'water lily',     emoji: '💮', color: '#f0d0e8', glow: 'rgba(240, 208, 232, 0.4)', radius: 30 },
+  { name: 'shooting star',  emoji: '🌟', color: '#f8e840', glow: 'rgba(248, 232, 64, 0.5)',  radius: 24 },
+  { name: 'paper boat',     emoji: '🛶', color: '#c8d8e8', glow: 'rgba(200, 216, 232, 0.4)', radius: 28 },
+  { name: 'ancient coin',   emoji: '🪙', color: '#d4a840', glow: 'rgba(212, 168, 64, 0.4)',  radius: 24 },
+];
+
+const GAME_SIZE = 8;
+
+function pickObjects() {
+  const shuffled = [...OBJECTS_POOL].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, GAME_SIZE);
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  placeObjects();
+}
+
+function placeObjects() {
+  hiddenObjects = activeObjects.map((obj) => {
+    const margin = 80;
+    return {
+      ...obj,
+      x: margin + Math.random() * (W - margin * 2),
+      y: margin + Math.random() * (H - margin * 2),
+      found: false,
+      surfaceAnim: 0,
+    };
+  });
+}
+
+function createRipple(x, y) {
+  ripples.push({ x, y, r: 0, maxR: 80 + Math.random() * 60, alpha: 0.7, speed: 1.2 + Math.random() * 0.8 });
+  ripples.push({ x, y, r: 0, maxR: 50 + Math.random() * 30, alpha: 0.5, speed: 1.8 + Math.random() * 0.6 });
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.4 + Math.random() * 0.8;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      alpha: 0.6 + Math.random() * 0.3,
+      r: 1 + Math.random() * 2,
+      life: 0,
+      maxLife: 60 + Math.random() * 40,
+    });
+  }
+}
+
+function checkDiscovery(x, y) {
+  for (const obj of hiddenObjects) {
+    if (obj.found) continue;
+    const dx = x - obj.x, dy = y - obj.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < obj.radius + 60) {
+      obj.found = true;
+      obj.surfaceAnim = 1;
+      foundObjects.add(obj.name);
+      totalFound++;
+      showFoundMessage(obj);
+      spawnSurfaceGlow(obj);
+      break;
+    }
+  }
+}
+
+function showFoundMessage(obj) {
+  foundName.textContent = obj.name;
+  foundName.style.color = obj.color;
+  foundCount.style.color = 'rgba(180, 220, 230, 0.45)';
+  foundCount.textContent = `${totalFound} of ${GAME_SIZE} found`;
+
+  setTimeout(() => {
+    foundName.style.color = 'rgba(180, 230, 240, 0)';
+    foundCount.style.color = 'rgba(180, 220, 230, 0.25)';
+    if (totalFound < GAME_SIZE) {
+      foundCount.textContent = `${totalFound} of ${GAME_SIZE} found`;
+    } else {
+      foundCount.textContent = 'the pond is still';
+      setTimeout(() => {
+        resetBtn.classList.add('visible');
+      }, 800);
+    }
+  }, 2800);
+}
+
+function spawnSurfaceGlow(obj) {
+  const el = document.createElement('div');
+  el.className = 'surface-flash';
+  el.style.cssText = `
+    left: ${obj.x}px; top: ${obj.y}px;
+    width: ${obj.radius * 2.5}px; height: ${obj.radius * 2.5}px;
+    background: radial-gradient(circle, ${obj.glow} 0%, transparent 70%);
+    box-shadow: 0 0 ${obj.radius * 2}px ${obj.color}55;
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function drawWater() {
+  // Deep water gradient
+  const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  grad.addColorStop(0, '#0d2d45');
+  grad.addColorStop(0.4, '#071828');
+  grad.addColorStop(1, '#030d15');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle caustic shimmer lines
+  ctx.save();
+  ctx.globalAlpha = 0.03;
+  for (let i = 0; i < 8; i++) {
+    const y = (H * 0.1) + (H * 0.8) * (i / 8);
+    const wave = Math.sin(frameCount * 0.008 + i * 0.7) * 12;
+    ctx.strokeStyle = '#2a9db0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y + wave);
+    for (let x = 0; x <= W; x += 8) {
+      ctx.lineTo(x, y + Math.sin(frameCount * 0.006 + x * 0.015 + i) * 8 + wave);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRipples() {
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const rip = ripples[i];
+    rip.r += rip.speed;
+    rip.alpha *= 0.97;
+
+    if (rip.alpha < 0.01 || rip.r > rip.maxR) {
+      ripples.splice(i, 1);
+      continue;
+    }
+
+    ctx.beginPath();
+    ctx.arc(rip.x, rip.y, rip.r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(42, 157, 176, ${rip.alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Inner shimmer ring
+    if (rip.r > 8) {
+      ctx.beginPath();
+      ctx.arc(rip.x, rip.y, rip.r * 0.6, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180, 230, 240, ${rip.alpha * 0.3})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+}
+
+function drawParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.94;
+    p.vy *= 0.94;
+    p.life++;
+
+    const progress = p.life / p.maxLife;
+    const alpha = p.alpha * (1 - progress);
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(180, 220, 235, ${alpha})`;
+    ctx.fill();
+
+    if (p.life >= p.maxLife) particles.splice(i, 1);
+  }
+}
+
+function drawHiddenObjects() {
+  for (const obj of hiddenObjects) {
+    if (!obj.found) {
+      // Visible breathing pulse so objects are findable
+      const pulse = Math.sin(frameCount * 0.02 + obj.x * 0.01) * 0.5 + 0.5;
+      const glowAlpha = 0.10 + pulse * 0.12;
+      const innerAlpha = 0.06 + pulse * 0.08;
+
+      // Outer glow
+      const outerGrad = ctx.createRadialGradient(obj.x, obj.y, 0, obj.x, obj.y, obj.radius * 2.5);
+      outerGrad.addColorStop(0, `rgba(42, 157, 176, ${glowAlpha})`);
+      outerGrad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, obj.radius * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = outerGrad;
+      ctx.fill();
+
+      // Inner bright core
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, obj.radius * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180, 230, 240, ${innerAlpha})`;
+      ctx.fill();
+    } else {
+      // Render found objects with gentle drift
+      const drift = Math.sin(frameCount * 0.015 + obj.x) * 3;
+      const bobY = obj.y + drift;
+      const pulse = Math.sin(frameCount * 0.025 + obj.x * 0.01) * 0.3 + 0.7;
+
+      ctx.save();
+      ctx.globalAlpha = pulse * 0.85;
+
+      // Glow halo
+      const halo = ctx.createRadialGradient(obj.x, bobY, 0, obj.x, bobY, obj.radius * 2.2);
+      halo.addColorStop(0, obj.glow);
+      halo.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(obj.x, bobY, obj.radius * 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+
+      // Emoji
+      ctx.globalAlpha = pulse * 0.9;
+      ctx.font = `${obj.radius * 1.1}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(obj.emoji, obj.x, bobY);
+
+      ctx.restore();
+    }
+  }
+}
+
+function loop() {
+  frameCount++;
+  ctx.clearRect(0, 0, W, H);
+  drawWater();
+  drawHiddenObjects();
+  drawRipples();
+  drawParticles();
+  requestAnimationFrame(loop);
+}
+
+function handleTap(x, y) {
+  if (hintVisible) {
+    hint.style.opacity = '0';
+    hintVisible = false;
+  }
+  createRipple(x, y);
+  checkDiscovery(x, y);
+}
+
+function resetGame() {
+  ripples = [];
+  particles = [];
+  foundObjects = new Set();
+  totalFound = 0;
+  activeObjects = pickObjects();
+  placeObjects();
+
+  foundName.textContent = '';
+  foundName.style.color = 'rgba(180, 230, 240, 0)';
+  foundCount.textContent = 'tap the water';
+  foundCount.style.color = 'rgba(180, 220, 230, 0.55)';
+
+  resetBtn.classList.remove('visible');
+
+  // Remove any lingering surface flashes
+  document.querySelectorAll('.surface-flash').forEach(el => el.remove());
+}
+
+canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  handleTap(t.clientX, t.clientY);
+}, { passive: false });
+
+window.addEventListener('resize', resize);
+
+// Initialize
+activeObjects = pickObjects();
+resize();
+loop();
+
+// Fade hint after 4 seconds
+setTimeout(() => {
+  if (hintVisible) {
+    hint.style.opacity = '0';
+    setTimeout(() => { hint.style.display = 'none'; }, 2000);
+  }
+}, 4000);
+</script>
+</body>
+</html>
