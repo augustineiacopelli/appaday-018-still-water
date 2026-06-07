@@ -43,7 +43,7 @@
     justify-content: space-between;
     align-items: flex-start;
     pointer-events: none;
-    z-index: 10;
+    z-index: 20;
   }
 
   #title {
@@ -55,13 +55,23 @@
     line-height: 1;
   }
 
-  #badge {
+  #portfolio-link {
     font-size: 12px;
     font-weight: 400;
-    color: rgba(180, 220, 230, 0.6);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     padding-top: 4px;
+  }
+
+  #portfolio-link a {
+    color: rgba(180, 220, 230, 0.65);
+    text-decoration: none;
+    pointer-events: all;
+    transition: color 0.2s ease;
+  }
+
+  #portfolio-link a:hover {
+    color: rgba(220, 245, 255, 0.95);
   }
 
   #found-display {
@@ -173,7 +183,7 @@
 
 <div id="header">
   <div id="title">still water</div>
-  <div id="badge">AppADay · 018</div>
+  <div id="portfolio-link"><a href="https://augustineiacopelli.github.io/appaday/">← portfolio</a><span style="color: rgba(180, 220, 230, 0.65);"> · 018</span></div>
 </div>
 
 <div id="found-display">
@@ -400,25 +410,32 @@ function drawParticles() {
 function drawHiddenObjects() {
   for (const obj of hiddenObjects) {
     if (!obj.found) {
-      // Visible breathing pulse so objects are findable
-      const pulse = Math.sin(frameCount * 0.02 + obj.x * 0.01) * 0.5 + 0.5;
-      const glowAlpha = 0.10 + pulse * 0.12;
-      const innerAlpha = 0.06 + pulse * 0.08;
+      // Check if any active ripple ring is currently passing over this object
+      let disturbance = 0;
+      for (const rip of ripples) {
+        const dx = rip.x - obj.x, dy = rip.y - obj.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const ringEdge = rip.r;
+        const proximity = Math.abs(dist - ringEdge);
+        if (proximity < 22) {
+          // Ripple ring is passing over — create a brief surface disturbance
+          disturbance = Math.max(disturbance, (1 - proximity / 22) * rip.alpha);
+        }
+      }
 
-      // Outer glow
-      const outerGrad = ctx.createRadialGradient(obj.x, obj.y, 0, obj.x, obj.y, obj.radius * 2.5);
-      outerGrad.addColorStop(0, `rgba(42, 157, 176, ${glowAlpha})`);
-      outerGrad.addColorStop(1, 'transparent');
-      ctx.beginPath();
-      ctx.arc(obj.x, obj.y, obj.radius * 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = outerGrad;
-      ctx.fill();
-
-      // Inner bright core
-      ctx.beginPath();
-      ctx.arc(obj.x, obj.y, obj.radius * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(180, 230, 240, ${innerAlpha})`;
-      ctx.fill();
+      if (disturbance > 0.01) {
+        // Fleeting water-surface shimmer at this location
+        const shimmerAlpha = disturbance * 0.45;
+        const shimmerGrad = ctx.createRadialGradient(obj.x, obj.y, 0, obj.x, obj.y, obj.radius * 1.8);
+        shimmerGrad.addColorStop(0, `rgba(180, 230, 240, ${shimmerAlpha})`);
+        shimmerGrad.addColorStop(0.5, `rgba(42, 157, 176, ${shimmerAlpha * 0.5})`);
+        shimmerGrad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(obj.x, obj.y, obj.radius * 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = shimmerGrad;
+        ctx.fill();
+      }
+      // Otherwise: completely invisible. No resting glow.
     } else {
       // Render found objects with gentle drift
       const drift = Math.sin(frameCount * 0.015 + obj.x) * 3;
@@ -487,8 +504,17 @@ function resetGame() {
   document.querySelectorAll('.surface-flash').forEach(el => el.remove());
 }
 
-canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
-canvas.addEventListener('touchstart', e => {
+canvas.style.pointerEvents = 'none';
+
+document.addEventListener('click', e => {
+  if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+  if (e.clientY < 70) return;
+  handleTap(e.clientX, e.clientY);
+});
+
+document.addEventListener('touchstart', e => {
+  if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+  if (e.touches[0].clientY < 70) return;
   e.preventDefault();
   const t = e.touches[0];
   handleTap(t.clientX, t.clientY);
