@@ -45,3 +45,7 @@ There is no timer. There is no fail state. There is only the water and the quiet
 - [x] Mobile-friendly — touch events, no horizontal scroll, tap targets adequate
 - [x] No timer, no score, no fail state — purely meditative
 - [x] Visually polished — deep water palette, Cormorant Garamond typography, cohesive aesthetic
+
+## Updates
+
+2026-06-06: Made objects less obvious in the water and linkback to AppADay portfolio
